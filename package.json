@@ -111,6 +111,8 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.0",
+    "@jupyterlab/nbformat": "^4.4.10",
+    "@jupyterlab/services": "^7.4.10",
     "@mastra/core": "^0.1.0",
     "axios": "^1.7.0",
     "dotenv": "^17.2.3",
