@@ -2,6 +2,8 @@
  * Configuration types
  */
 
+import { MCPServerConfig } from './mcp.types';
+
 export interface ExtensionConfig {
   llm: LLMConfig;
   workflow: WorkflowConfig;
@@ -31,12 +33,6 @@ export interface JupyterConfig {
 
 export interface MCPConfig {
   servers: MCPServerConfig[];
-  enabled: boolean;
-}
-
-export interface MCPServerConfig {
-  name: string;
-  url: string;
   enabled: boolean;
 }
 

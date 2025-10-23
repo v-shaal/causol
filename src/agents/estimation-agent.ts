@@ -4,9 +4,9 @@
  */
 
 import { BaseCausalAgent } from './base-agent';
-import { WorkflowStage, SharedContext } from '@types/workflow.types';
-import { Task, AgentResult } from '@types/agent.types';
-import { estimationSystemPrompt } from '@knowledge/prompts/estimation/system.prompt';
+import { WorkflowStage, SharedContext } from '../types/workflow.types';
+import { Task, AgentResult } from '../types/agent.types';
+import { estimationSystemPrompt } from '../knowledge/prompts/estimation/system.prompt';
 
 export interface EstimationResult {
   method: 'regression' | 'ipw' | 'matching' | 'doubly_robust' | 'other';
@@ -36,7 +36,7 @@ export class EstimationAgent extends BaseCausalAgent {
     return task.stage === WorkflowStage.ESTIMATION;
   }
 
-  async execute(task: Task, context: SharedContext): Promise<AgentResult> {
+  async execute(_task: Task, context: SharedContext): Promise<AgentResult> {
     try {
       const { treatment, outcome, adjustmentSet, dataset } = context;
 
@@ -93,7 +93,7 @@ export class EstimationAgent extends BaseCausalAgent {
     outcome: string,
     adjustmentSet: string[],
     dataset: any,
-    context: SharedContext
+    _context: SharedContext
   ): string {
     return `Generate Python code to estimate the causal effect:
 

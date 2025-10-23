@@ -4,9 +4,9 @@
  */
 
 import { BaseCausalAgent } from './base-agent';
-import { WorkflowStage, SharedContext } from '@types/workflow.types';
-import { Task, AgentResult } from '@types/agent.types';
-import { formulationSystemPrompt } from '@knowledge/prompts/formulation/system.prompt';
+import { WorkflowStage, SharedContext } from '../types/workflow.types';
+import { Task, AgentResult } from '../types/agent.types';
+import { formulationSystemPrompt } from '../knowledge/prompts/formulation/system.prompt';
 
 export interface FormulationResult {
   treatment: string;

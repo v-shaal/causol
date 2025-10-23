@@ -4,9 +4,9 @@
  */
 
 import { BaseCausalAgent } from './base-agent';
-import { WorkflowStage, SharedContext } from '@types/workflow.types';
-import { Task, AgentResult } from '@types/agent.types';
-import { edaSystemPrompt } from '@knowledge/prompts/eda/system.prompt';
+import { WorkflowStage, SharedContext } from '../types/workflow.types';
+import { Task, AgentResult } from '../types/agent.types';
+import { edaSystemPrompt } from '../knowledge/prompts/eda/system.prompt';
 
 export interface EDAResult {
   checks: EDACheck[];
@@ -50,7 +50,7 @@ export class EDAAgent extends BaseCausalAgent {
     return task.stage === WorkflowStage.EDA;
   }
 
-  async execute(task: Task, context: SharedContext): Promise<AgentResult> {
+  async execute(_task: Task, context: SharedContext): Promise<AgentResult> {
     try {
       const { treatment, outcome, dataset } = context;
 

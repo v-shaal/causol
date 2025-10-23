@@ -4,9 +4,9 @@
  */
 
 import { BaseCausalAgent } from './base-agent';
-import { WorkflowStage, SharedContext, DAG, DAGNode, DAGEdge } from '@types/workflow.types';
-import { Task, AgentResult } from '@types/agent.types';
-import { dagSystemPrompt } from '@knowledge/prompts/dag/system.prompt';
+import { WorkflowStage, SharedContext, DAG } from '../types/workflow.types';
+import { Task, AgentResult } from '../types/agent.types';
+import { dagSystemPrompt } from '../knowledge/prompts/dag/system.prompt';
 
 export interface DAGResult {
   dag: DAG;
@@ -37,7 +37,7 @@ export class DAGAgent extends BaseCausalAgent {
     return task.stage === WorkflowStage.DAG;
   }
 
-  async execute(task: Task, context: SharedContext): Promise<AgentResult> {
+  async execute(_task: Task, context: SharedContext): Promise<AgentResult> {
     try {
       const { treatment, outcome, confounders } = context;
 
@@ -93,7 +93,7 @@ export class DAGAgent extends BaseCausalAgent {
     treatment: string,
     outcome: string,
     knownConfounders: string[],
-    context: SharedContext
+    _context: SharedContext
   ): string {
     return `Construct a causal DAG for this research question:
 

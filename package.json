@@ -68,7 +68,10 @@
         "causalAssistant.llm.provider": {
           "type": "string",
           "default": "openai",
-          "enum": ["openai", "anthropic"],
+          "enum": [
+            "openai",
+            "anthropic"
+          ],
           "description": "LLM provider to use"
         },
         "causalAssistant.llm.model": {
@@ -107,9 +110,10 @@
     "clean": "rm -rf dist out webview-ui/build"
   },
   "dependencies": {
-    "@mastra/core": "^0.1.0",
     "@anthropic-ai/sdk": "^0.32.0",
+    "@mastra/core": "^0.1.0",
     "axios": "^1.7.0",
+    "dotenv": "^17.2.3",
     "zod": "^3.23.0",
     "zustand": "^5.0.0"
   },

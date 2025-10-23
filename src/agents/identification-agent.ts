@@ -4,9 +4,9 @@
  */
 
 import { BaseCausalAgent } from './base-agent';
-import { WorkflowStage, SharedContext, DAG } from '@types/workflow.types';
-import { Task, AgentResult } from '@types/agent.types';
-import { identificationSystemPrompt } from '@knowledge/prompts/identification/system.prompt';
+import { WorkflowStage, SharedContext, DAG } from '../types/workflow.types';
+import { Task, AgentResult } from '../types/agent.types';
+import { identificationSystemPrompt } from '../knowledge/prompts/identification/system.prompt';
 
 export interface IdentificationResult {
   isIdentifiable: boolean;
@@ -51,7 +51,7 @@ export class IdentificationAgent extends BaseCausalAgent {
     return task.stage === WorkflowStage.IDENTIFICATION;
   }
 
-  async execute(task: Task, context: SharedContext): Promise<AgentResult> {
+  async execute(_task: Task, context: SharedContext): Promise<AgentResult> {
     try {
       const { dag, treatment, outcome } = context;
 
@@ -108,11 +108,8 @@ export class IdentificationAgent extends BaseCausalAgent {
     dag: DAG,
     treatment: string,
     outcome: string,
-    context: SharedContext
+    _context: SharedContext
   ): string {
-    // Serialize DAG for prompt
-    const dagDescription = this.serializeDAG(dag);
-
     return `Apply the backdoor criterion to determine if the causal effect is identifiable:
 
 **Treatment**: ${treatment}
@@ -161,10 +158,6 @@ Provide analysis in JSON format:
 }
 
 Be rigorous and conservative in your assessment.`;
-  }
-
-  private serializeDAG(dag: DAG): string {
-    return JSON.stringify({ nodes: dag.nodes, edges: dag.edges }, null, 2);
   }
 
   private parseIdentificationResponse(response: string): IdentificationResult {
