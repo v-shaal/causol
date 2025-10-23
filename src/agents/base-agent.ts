@@ -24,13 +24,13 @@ export abstract class BaseCausalAgent implements CausalAgent {
     this.stage = stage;
     this.capabilities = capabilities;
 
-    // Initialize Mastra agent with system prompt
+    // Initialize Mastra agent with system prompt (OpenAI)
     this.agent = new Agent({
       name: this.name,
       instructions: systemPrompt,
       model: {
-        provider: 'anthropic',
-        name: 'claude-sonnet-4-20250514',
+        provider: 'openai',
+        name: 'gpt-4o',
         toolChoice: 'auto',
       },
     });

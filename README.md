@@ -16,7 +16,7 @@ Causal Inference Assistant is a VS Code extension that democratizes rigorous cau
 - 📊 **Jupyter Integration**: Execute Python code and analyze outputs directly in your notebooks
 - 🔍 **Causal-Aware Analysis**: Automated checks for common pitfalls (colliders, confounding, positivity)
 - 🎨 **VS Code Native**: Seamless sidebar chat interface with workflow progress visualization
-- 🤖 **Powered by Claude**: Leveraging Anthropic's latest models for domain expertise
+- 🤖 **Powered by GPT-4**: Leveraging OpenAI's latest models for domain expertise
 
 ## 🚀 Quick Start
 
@@ -25,7 +25,7 @@ Causal Inference Assistant is a VS Code extension that democratizes rigorous cau
 - VS Code 1.85+
 - Node.js 18+
 - Python 3.8+ with Jupyter
-- Anthropic API key
+- OpenAI API key
 
 ### Installation
 
@@ -39,7 +39,7 @@ npm install
 
 # Configure your API key
 cp .env.example .env
-# Edit .env and add your ANTHROPIC_API_KEY
+# Edit .env and add your OPENAI_API_KEY
 
 # Build the extension
 npm run compile
