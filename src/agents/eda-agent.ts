@@ -135,12 +135,25 @@ export class EDAAgent extends BaseCausalAgent {
   ): string {
     const confounders = context.confounders || [];
 
+    const datasetInfo = dataset
+      ? `
+**Dataset Available**:
+- Variable name: \`df\` (already loaded in Python environment)
+- Shape: ${dataset.rows} rows × ${dataset.columns?.length || 0} columns
+- Columns: ${dataset.columns?.join(', ') || 'See context'}
+- Treatment variable: \`df['${treatment}']\`
+- Outcome variable: \`df['${outcome}']\`
+${confounders.length > 0 ? `- Confounders: ${confounders.map((v) => `\`df['${v}']\``).join(', ')}` : ''}`
+      : '**Dataset**: Not yet loaded';
+
     return `Perform causal-aware EDA for the following analysis:
 
 **Treatment**: ${treatment}
 **Outcome**: ${outcome}
 **Confounders**: ${confounders.length > 0 ? confounders.join(', ') : 'To be determined'}
-${dataset ? `**Dataset**: ${dataset.rows} rows, ${dataset.columns?.length || 0} columns` : '**Dataset**: Not loaded yet'}
+${datasetInfo}
+
+⚠️ CRITICAL: The DataFrame 'df' is ALREADY LOADED in the Python kernel. DO NOT use pd.read_csv() or load data. The data is ready to use.
 
 Generate Python code to check the following causal assumptions:
 
@@ -148,6 +161,13 @@ Generate Python code to check the following causal assumptions:
 2. **Balance**: Calculate standardized mean differences for confounders
 3. **Missing Data**: Check for patterns in missing data related to treatment/outcome
 4. **Distributions**: Compare treatment and outcome distributions
+
+Requirements:
+- Use the existing DataFrame 'df' directly (already in memory)
+- Import necessary libraries (numpy, pandas, matplotlib, seaborn if needed)
+- Include visualizations using matplotlib/seaborn
+- Be specific about which variables to check
+- Calculate actual statistics (e.g., SMD, overlap coefficients)
 
 Provide your analysis in JSON format:
 
@@ -157,7 +177,7 @@ Provide your analysis in JSON format:
       "name": "Check name",
       "type": "positivity|balance|missing_data|overlap|distribution",
       "status": "pass|warning|fail",
-      "details": "Description of findings"
+      "details": "Description of findings with actual numbers"
     }
   ],
   "violations": [
@@ -168,12 +188,37 @@ Provide your analysis in JSON format:
       "suggestedAction": "How to address it"
     }
   ],
-  "pythonCode": "# Complete Python code to execute\\nimport pandas as pd\\n...",
+  "pythonCode": "# EDA code using existing 'df' DataFrame\\nimport numpy as np\\nimport pandas as pd\\nimport matplotlib.pyplot as plt\\nimport seaborn as sns\\n\\n# The DataFrame 'df' is already loaded - use it directly\\n...",
   "summary": "Brief summary of EDA findings",
   "recommendations": ["List of recommendations"]
 }
 
-Focus on causal validity. Be conservative - flag potential issues even if uncertain.`;
+Example code pattern:
+\`\`\`python
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# Use existing df DataFrame - DO NOT load data
+print(f"Dataset shape: {df.shape}")
+print(f"\\nTreatment distribution:")
+print(df['${treatment}'].value_counts())
+
+# Check positivity
+treated = df[df['${treatment}'] == 1]
+control = df[df['${treatment}'] == 0]
+print(f"\\nPositivity check:")
+print(f"  Treated: {len(treated)} ({len(treated)/len(df)*100:.1f}%)")
+print(f"  Control: {len(control)} ({len(control)/len(df)*100:.1f}%)")
+
+# Balance checks for confounders
+${confounders.length > 0 ? `for var in ['${confounders.join("', '")}']:
+    smd = (treated[var].mean() - control[var].mean()) / np.sqrt((treated[var].std()**2 + control[var].std()**2) / 2)
+    print(f"  {var} SMD: {smd:.3f}")` : '# Add confounder balance checks when identified'}
+\`\`\`
+
+Focus on causal validity. Be conservative - flag potential issues even if uncertain.
+Remember: 'df' is already loaded and ready to use!`;
   }
 
   private parseEDAResponse(response: string): EDAResult {

@@ -126,30 +126,45 @@ export class EstimationAgent extends BaseCausalAgent {
     dataset: any,
     _context: SharedContext
   ): string {
+    const datasetInfo = dataset
+      ? `
+**Dataset Available**:
+- Variable name: \`df\` (already loaded in Python environment)
+- Shape: ${dataset.rows} rows × ${dataset.columns?.length || 0} columns
+- Columns: ${dataset.columns?.join(', ') || 'See context'}
+- Treatment variable: \`df['${treatment}']\`
+- Outcome variable: \`df['${outcome}']\`
+- Adjustment variables: ${adjustmentSet.map((v) => `\`df['${v}']\``).join(', ')}`
+      : '**Dataset**: Not yet loaded';
+
     return `Generate Python code to estimate the causal effect:
 
 **Treatment**: ${treatment}
 **Outcome**: ${outcome}
 **Adjustment Set**: ${adjustmentSet.join(', ')}
-${dataset ? `**Dataset**: ${dataset.rows} rows, ${dataset.columns?.length || 0} columns` : ''}
+${datasetInfo}
+
+⚠️ CRITICAL: The DataFrame 'df' is ALREADY LOADED in the Python kernel. DO NOT use pd.read_csv() or load data. The data is ready to use.
 
 Requirements:
-1. Use standard Python libraries (pandas, statsmodels, sklearn, numpy, scipy)
-2. Include proper error handling
-3. Calculate point estimate and 95% confidence interval
-4. Include diagnostic checks
-5. Add clear comments explaining each step
+1. Use the existing DataFrame 'df' directly (already in memory)
+2. Use standard Python libraries (pandas, statsmodels, sklearn, numpy, scipy)
+3. Include proper error handling
+4. Calculate point estimate and 95% confidence interval
+5. Include diagnostic checks
+6. Add clear comments explaining each step
 
 Choose the most appropriate method:
 - **Regression Adjustment**: If linear relationships and continuous outcome
 - **IPW**: If binary treatment and good overlap
-- **Other**: Justify your choice
+- **Matching**: If non-linear relationships
+- **Doubly Robust**: For robustness to model misspecification
 
 Provide output in JSON format:
 
 {
-  "method": "regression|ipw|matching|other",
-  "pythonCode": "# Complete Python code here\\nimport pandas as pd\\nimport numpy as np\\n...",
+  "method": "regression|ipw|matching|doubly_robust",
+  "pythonCode": "# Estimation code using existing 'df' DataFrame\\nimport numpy as np\\nimport statsmodels.api as sm\\n\\n# The DataFrame 'df' is already loaded - use it directly\\n...",
   "explanation": "Why this method is appropriate for this problem",
   "interpretation": "How to interpret the estimated effect",
   "diagnostics": ["Diagnostic check 1", "Diagnostic check 2"],
@@ -161,7 +176,36 @@ Provide output in JSON format:
   }
 }
 
-Prioritize clarity and correctness. Assume 'df' is a pandas DataFrame with the data.`;
+Example code structure (use this pattern):
+\`\`\`python
+import numpy as np
+import statsmodels.api as sm
+
+# Use existing df DataFrame - DO NOT load data
+X = df[['${adjustmentSet.join("', '")}']]
+y = df['${outcome}']
+treatment = df['${treatment}']
+
+# Add treatment to covariates
+X_with_treatment = X.copy()
+X_with_treatment['${treatment}'] = treatment
+
+# Add intercept
+X_with_treatment = sm.add_constant(X_with_treatment)
+
+# Fit model
+model = sm.OLS(y, X_with_treatment).fit()
+
+# Extract treatment effect
+treatment_effect = model.params['${treatment}']
+conf_int = model.conf_int().loc['${treatment}']
+
+print(f"Treatment Effect: {treatment_effect:.4f}")
+print(f"95% CI: [{conf_int[0]:.4f}, {conf_int[1]:.4f}]")
+print(f"P-value: {model.pvalues['${treatment}']:.4f}")
+\`\`\`
+
+Remember: 'df' is already loaded and ready to use!`;
   }
 
   private parseEstimationResponse(response: string): EstimationResult {
