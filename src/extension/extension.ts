@@ -1,22 +1,27 @@
 import * as vscode from 'vscode';
+import { testJupyterIntegrationCommand } from '../commands';
 
 export function activate(context: vscode.ExtensionContext) {
   console.log('Causal Inference Assistant is now active!');
 
-  // TODO: Initialize components
-  // - Webview provider
-  // - Command handlers
-  // - Workflow engine
-  // - Jupyter integration
+  // Register commands
+  const commands = [
+    // Workflow commands
+    vscode.commands.registerCommand(
+      'causal-assistant.startWorkflow',
+      () => {
+        vscode.window.showInformationMessage('Causal Inference Assistant: Start Workflow');
+      }
+    ),
 
-  const disposable = vscode.commands.registerCommand(
-    'causal-assistant.startWorkflow',
-    () => {
-      vscode.window.showInformationMessage('Causal Inference Assistant: Start Workflow');
-    }
-  );
+    // Test commands
+    vscode.commands.registerCommand(
+      'causal-assistant.testJupyter',
+      testJupyterIntegrationCommand
+    ),
+  ];
 
-  context.subscriptions.push(disposable);
+  context.subscriptions.push(...commands);
 }
 
 export function deactivate() {

@@ -20,11 +20,7 @@
     "statistics",
     "ai assistant"
   ],
-  "activationEvents": [
-    "onView:causal-assistant-chat",
-    "onCommand:causal-assistant.startWorkflow",
-    "onLanguage:jupyter"
-  ],
+  "activationEvents": [],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
@@ -41,6 +37,11 @@
       {
         "command": "causal-assistant.restartWorkflow",
         "title": "Restart Workflow",
+        "category": "Causal Assistant"
+      },
+      {
+        "command": "causal-assistant.testJupyter",
+        "title": "Test Jupyter Integration",
         "category": "Causal Assistant"
       }
     ],
