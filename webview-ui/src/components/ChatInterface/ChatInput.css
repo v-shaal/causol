@@ -1,0 +1,70 @@
+.chat-input {
+  display: flex;
+  gap: 8px;
+  padding: 12px;
+  background-color: var(--vscode-input-background);
+  border-top: 1px solid var(--vscode-panel-border);
+  align-items: flex-end;
+}
+
+.chat-input__textarea {
+  flex: 1;
+  min-height: 40px;
+  max-height: 200px;
+  padding: 10px 12px;
+  border: 1px solid var(--vscode-input-border);
+  border-radius: 6px;
+  background-color: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  resize: none;
+  overflow-y: auto;
+  line-height: 1.4;
+}
+
+.chat-input__textarea:focus {
+  outline: none;
+  border-color: var(--vscode-focusBorder);
+}
+
+.chat-input__textarea:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.chat-input__textarea::placeholder {
+  color: var(--vscode-input-placeholderForeground);
+}
+
+.chat-input__button {
+  min-width: 40px;
+  height: 40px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background-color: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+}
+
+.chat-input__button:hover:not(:disabled) {
+  background-color: var(--vscode-button-hoverBackground);
+}
+
+.chat-input__button:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.chat-input__button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.chat-input__button svg {
+  transform: rotate(90deg);
+}

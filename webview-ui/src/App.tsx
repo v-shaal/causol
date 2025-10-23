@@ -1,10 +1,10 @@
-import React from 'react';
+import { ChatInterface } from './components/ChatInterface/ChatInterface';
+import './App.css';
 
 function App() {
   return (
     <div className="app">
-      <h1>Causal Inference Assistant</h1>
-      <p>Webview UI - Coming soon...</p>
+      <ChatInterface />
     </div>
   );
 }
