@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+webview-ui/node_modules/
+
+# Build outputs
+dist/
+out/
+webview-ui/build/
+
+# VS Code
+.vscode-test/
+*.vsix
+
+# Environment
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Testing
+coverage/
+.nyc_output/
+.jest-cache/
+
+# Temporary
+*.tmp
+.cache/
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~

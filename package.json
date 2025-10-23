@@ -1,0 +1,137 @@
+{
+  "name": "causal-inference-assistant",
+  "displayName": "Causal Inference Assistant",
+  "description": "AI-powered multi-agent system for rigorous causal inference workflows in Jupyter notebooks",
+  "version": "0.1.0",
+  "publisher": "causol",
+  "engines": {
+    "vscode": "^1.85.0",
+    "node": ">=18.0.0"
+  },
+  "categories": [
+    "Data Science",
+    "Machine Learning",
+    "Notebooks"
+  ],
+  "keywords": [
+    "causal inference",
+    "jupyter",
+    "data science",
+    "statistics",
+    "ai assistant"
+  ],
+  "activationEvents": [
+    "onView:causal-assistant-chat",
+    "onCommand:causal-assistant.startWorkflow",
+    "onLanguage:jupyter"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "causal-assistant.startWorkflow",
+        "title": "Start Causal Analysis",
+        "category": "Causal Assistant"
+      },
+      {
+        "command": "causal-assistant.continueWorkflow",
+        "title": "Continue Workflow",
+        "category": "Causal Assistant"
+      },
+      {
+        "command": "causal-assistant.restartWorkflow",
+        "title": "Restart Workflow",
+        "category": "Causal Assistant"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "causal-assistant",
+          "title": "Causal Inference",
+          "icon": "resources/icons/causal-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "causal-assistant": [
+        {
+          "type": "webview",
+          "id": "causal-assistant-chat",
+          "name": "Assistant"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Causal Inference Assistant",
+      "properties": {
+        "causalAssistant.llm.provider": {
+          "type": "string",
+          "default": "anthropic",
+          "enum": ["anthropic", "openai"],
+          "description": "LLM provider to use"
+        },
+        "causalAssistant.llm.model": {
+          "type": "string",
+          "default": "claude-sonnet-4",
+          "description": "Model name to use"
+        },
+        "causalAssistant.workflow.autoAdvance": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically advance to next workflow stage"
+        },
+        "causalAssistant.validation.strictMode": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable strict validation of causal assumptions"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "webpack --mode production",
+    "compile:webview": "cd webview-ui && npm run build",
+    "watch": "webpack --mode development --watch",
+    "watch:webview": "cd webview-ui && npm run dev",
+    "pretest": "npm run compile && npm run lint",
+    "test": "jest",
+    "test:e2e": "vscode-test",
+    "lint": "eslint src --ext ts,tsx",
+    "format": "prettier --write \"src/**/*.{ts,tsx}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx}\"",
+    "package": "vsce package",
+    "install:webview": "cd webview-ui && npm install",
+    "postinstall": "npm run install:webview",
+    "clean": "rm -rf dist out webview-ui/build"
+  },
+  "dependencies": {
+    "@mastra/core": "^0.1.0",
+    "@anthropic-ai/sdk": "^0.32.0",
+    "axios": "^1.7.0",
+    "zod": "^3.23.0",
+    "zustand": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.0",
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "@vscode/test-electron": "^2.4.0",
+    "@vscode/vsce": "^3.0.0",
+    "eslint": "^9.0.0",
+    "eslint-config-prettier": "^9.0.0",
+    "jest": "^29.7.0",
+    "prettier": "^3.0.0",
+    "ts-jest": "^29.2.0",
+    "ts-loader": "^9.5.0",
+    "typescript": "^5.6.0",
+    "webpack": "^5.95.0",
+    "webpack-cli": "^5.1.0"
+  },
+  "extensionDependencies": [
+    "ms-toolsai.jupyter"
+  ]
+}
