@@ -8,11 +8,11 @@ import { EstimationAgent } from '../agents/estimation-agent';
 import { WorkflowStage, SharedContext } from '../types/workflow.types';
 import { Task } from '../types/agent.types';
 import { VSCodeJupyterExecutor } from '../jupyter';
-import { ChatProvider } from '../chat';
+import { getChatProvider } from '../extension/extension';
 
-export async function demoWorkflowCommand(context: vscode.ExtensionContext) {
+export async function demoWorkflowCommand() {
   // Get the chat provider
-  const chatProvider = context.workspaceState.get<ChatProvider>('chatProvider');
+  const chatProvider = getChatProvider();
 
   if (!chatProvider) {
     vscode.window.showErrorMessage('Chat provider not initialized');

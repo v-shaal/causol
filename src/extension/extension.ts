@@ -8,6 +8,13 @@ import {
 } from '../commands';
 import { ChatProvider } from '../chat';
 
+// Module-level reference to chat provider (accessible from commands)
+let chatProviderInstance: ChatProvider | undefined;
+
+export function getChatProvider(): ChatProvider | undefined {
+  return chatProviderInstance;
+}
+
 export function activate(context: vscode.ExtensionContext) {
   // Load environment variables from .env file
   // Try multiple locations: workspace folder, then extension directory
@@ -44,12 +51,10 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Register chat webview provider
   const chatProvider = new ChatProvider(context.extensionUri);
+  chatProviderInstance = chatProvider; // Store in module-level variable
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(ChatProvider.viewType, chatProvider)
   );
-
-  // Store provider for access from commands/agents
-  context.workspaceState.update('chatProvider', chatProvider);
 
   // Register commands
   const commands = [
@@ -72,7 +77,7 @@ export function activate(context: vscode.ExtensionContext) {
     ),
     vscode.commands.registerCommand(
       'causal-assistant.demoWorkflow',
-      () => demoWorkflowCommand(context)
+      demoWorkflowCommand
     ),
   ];
 
