@@ -48,6 +48,11 @@
         "command": "causal-assistant.testAgents",
         "title": "Test Agents with Jupyter",
         "category": "Causal Assistant"
+      },
+      {
+        "command": "causal-assistant.demoWorkflow",
+        "title": "Demo Workflow in Chat",
+        "category": "Causal Assistant"
       }
     ],
     "viewsContainers": {

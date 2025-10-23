@@ -1,7 +1,12 @@
 import * as vscode from 'vscode';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
-import { testJupyterIntegrationCommand, testAgentsWithJupyterCommand } from '../commands';
+import {
+  testJupyterIntegrationCommand,
+  testAgentsWithJupyterCommand,
+  demoWorkflowCommand,
+} from '../commands';
+import { ChatProvider } from '../chat';
 
 export function activate(context: vscode.ExtensionContext) {
   // Load environment variables from .env file
@@ -37,6 +42,15 @@ export function activate(context: vscode.ExtensionContext) {
   console.log('OPENAI_API_KEY available:', !!process.env.OPENAI_API_KEY);
   console.log('Causal Inference Assistant is now active!');
 
+  // Register chat webview provider
+  const chatProvider = new ChatProvider(context.extensionUri);
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider(ChatProvider.viewType, chatProvider)
+  );
+
+  // Store provider for access from commands/agents
+  context.workspaceState.update('chatProvider', chatProvider);
+
   // Register commands
   const commands = [
     // Workflow commands
@@ -55,6 +69,10 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand(
       'causal-assistant.testAgents',
       testAgentsWithJupyterCommand
+    ),
+    vscode.commands.registerCommand(
+      'causal-assistant.demoWorkflow',
+      () => demoWorkflowCommand(context)
     ),
   ];
 
