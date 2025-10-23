@@ -7,11 +7,14 @@ import { BaseCausalAgent } from './base-agent';
 import { WorkflowStage, SharedContext } from '../types/workflow.types';
 import { Task, AgentResult } from '../types/agent.types';
 import { edaSystemPrompt } from '../knowledge/prompts/eda/system.prompt';
+import { VSCodeJupyterExecutor, formatResultForChat } from '../jupyter';
 
 export interface EDAResult {
   checks: EDACheck[];
   violations: AssumptionViolation[];
   pythonCode: string;
+  executionOutput?: string;
+  executionSuccess?: boolean;
   summary: string;
   recommendations: string[];
 }
@@ -68,6 +71,28 @@ export class EDAAgent extends BaseCausalAgent {
       // Parse EDA results
       const result = this.parseEDAResponse(response);
 
+      // Execute the generated Python code if Jupyter is available
+      if (result.pythonCode && result.pythonCode !== '# No code generated') {
+        try {
+          const executionResult = await VSCodeJupyterExecutor.executeCode(result.pythonCode);
+          result.executionOutput = formatResultForChat(executionResult);
+          result.executionSuccess = executionResult.success;
+
+          // If execution failed, add to violations
+          if (!executionResult.success && executionResult.error) {
+            result.violations.push({
+              assumption: 'Code Execution',
+              severity: 'moderate',
+              description: `Failed to execute EDA code: ${executionResult.error.ename}`,
+              suggestedAction: 'Check data availability and column names',
+            });
+          }
+        } catch (error) {
+          console.warn('Jupyter execution not available:', error);
+          // Continue without execution - user can run manually
+        }
+      }
+
       // Check for critical violations
       const criticalViolations = result.violations.filter((v) => v.severity === 'critical');
 
@@ -79,11 +104,21 @@ export class EDAAgent extends BaseCausalAgent {
         );
       }
 
-      return this.createSuccessResult(result, [
-        'Execute the generated Python code in your Jupyter notebook',
-        'Review the output and address any warnings',
-        'Proceed to DAG Construction stage',
-      ]);
+      const nextSteps = result.executionSuccess
+        ? [
+            '✅ EDA checks executed successfully',
+            'Review the analysis output above',
+            'Address any warnings before proceeding',
+            'Continue to DAG Construction stage',
+          ]
+        : [
+            'Generated EDA code (execution unavailable)',
+            'Copy and run the Python code in your Jupyter notebook',
+            'Review the output and address any warnings',
+            'Proceed to DAG Construction stage',
+          ];
+
+      return this.createSuccessResult(result, nextSteps);
     } catch (error) {
       return this.createErrorResult(
         error as Error,

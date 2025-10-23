@@ -7,10 +7,13 @@ import { BaseCausalAgent } from './base-agent';
 import { WorkflowStage, SharedContext } from '../types/workflow.types';
 import { Task, AgentResult } from '../types/agent.types';
 import { estimationSystemPrompt } from '../knowledge/prompts/estimation/system.prompt';
+import { VSCodeJupyterExecutor, formatResultForChat } from '../jupyter';
 
 export interface EstimationResult {
   method: 'regression' | 'ipw' | 'matching' | 'doubly_robust' | 'other';
   pythonCode: string;
+  executionOutput?: string;
+  executionSuccess?: boolean;
   explanation: string;
   interpretation: string;
   diagnostics: string[];
@@ -68,18 +71,46 @@ export class EstimationAgent extends BaseCausalAgent {
       // Parse estimation results
       const result = this.parseEstimationResponse(response);
 
+      // Execute the generated Python code if Jupyter is available
+      if (result.pythonCode && result.pythonCode !== '# No code generated') {
+        try {
+          const executionResult = await VSCodeJupyterExecutor.executeCode(result.pythonCode);
+          result.executionOutput = formatResultForChat(executionResult);
+          result.executionSuccess = executionResult.success;
+
+          // If execution failed, add to limitations
+          if (!executionResult.success && executionResult.error) {
+            result.limitations.push(
+              `Code execution failed: ${executionResult.error.ename}. Check data availability.`
+            );
+          }
+        } catch (error) {
+          console.warn('Jupyter execution not available:', error);
+          // Continue without execution - user can run manually
+        }
+      }
+
       // Update shared context with estimation approach
       context.estimate = {
         effect: 0, // Will be filled after code execution
         method: result.method,
       };
 
-      return this.createSuccessResult(result, [
-        'Execute the generated Python code in your Jupyter notebook',
-        'Review the estimated causal effect',
-        'Check diagnostics to ensure validity',
-        'Consider sensitivity analysis (future stage)',
-      ]);
+      const nextSteps = result.executionSuccess
+        ? [
+            '✅ Estimation code executed successfully',
+            'Review the estimated causal effect above',
+            'Check diagnostics to ensure validity',
+            'Consider sensitivity analysis (future stage)',
+          ]
+        : [
+            'Generated estimation code (execution unavailable)',
+            'Copy and run the Python code in your Jupyter notebook',
+            'Review the estimated causal effect',
+            'Check diagnostics to ensure validity',
+          ];
+
+      return this.createSuccessResult(result, nextSteps);
     } catch (error) {
       return this.createErrorResult(
         error as Error,

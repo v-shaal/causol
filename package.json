@@ -43,6 +43,11 @@
         "command": "causal-assistant.testJupyter",
         "title": "Test Jupyter Integration",
         "category": "Causal Assistant"
+      },
+      {
+        "command": "causal-assistant.testAgents",
+        "title": "Test Agents with Jupyter",
+        "category": "Causal Assistant"
       }
     ],
     "viewsContainers": {
