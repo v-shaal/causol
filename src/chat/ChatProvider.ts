@@ -85,16 +85,14 @@ export class ChatProvider implements vscode.WebviewViewProvider {
     this.sendMessage('error', { error });
   }
 
-  private handleUserMessage(message: string) {
-    // TODO: Process user message through workflow engine
-    // For now, echo back
+  private async handleUserMessage(message: string) {
     console.log('User message:', message);
 
-    // Send a placeholder response
-    this.sendAssistantMessage(
-      'I received your message. The workflow engine will process this soon!',
-      { agentName: 'System', type: 'text' }
-    );
+    // Import orchestrator dynamically to avoid circular dependencies
+    const { chatWorkflowOrchestrator } = await import('../orchestration/chat-workflow-orchestrator');
+
+    // Process message through workflow orchestrator
+    await chatWorkflowOrchestrator.processUserMessage(message);
   }
 
   private handleStartWorkflow(stage: string) {
