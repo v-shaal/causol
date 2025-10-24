@@ -11,6 +11,7 @@ import { Task } from '../types/agent.types';
 import { FormulationAgent } from '../agents/formulation-agent';
 import { EDAAgent } from '../agents/eda-agent';
 import { EstimationAgent } from '../agents/estimation-agent';
+import { PlannerAgent, PlannerResult } from '../agents/planner-agent';
 import { getChatProvider } from '../extension/extension';
 
 export interface WorkflowSession {
@@ -27,6 +28,11 @@ export interface WorkflowSession {
 
 export class ChatWorkflowOrchestrator {
   private currentSession: WorkflowSession | null = null;
+  private plannerAgent: PlannerAgent;
+
+  constructor() {
+    this.plannerAgent = new PlannerAgent();
+  }
 
   /**
    * Start a new workflow session
@@ -76,110 +82,164 @@ export class ChatWorkflowOrchestrator {
       timestamp: Date.now(),
     });
 
-    // Analyze user intent and route to appropriate handler
-    const intent = this.analyzeUserIntent(message);
+    // Use Planner Agent to analyze intent and create execution plan
+    chatProvider.sendSystemMessage('🤔 Analyzing your request...');
 
+    let plannerResult: PlannerResult;
     try {
-      switch (intent.type) {
-        case 'formulation':
-          await this.handleFormulation(message, intent);
-          break;
+      plannerResult = await this.plannerAgent.analyze(
+        message,
+        this.currentSession!.conversationHistory,
+        this.currentSession!.sharedContext,
+        this.currentSession!.currentStage
+      );
 
-        case 'eda':
-          await this.handleEDA(message, intent);
-          break;
+      // Log planner analysis for debugging
+      console.log('Planner analysis:', JSON.stringify(plannerResult, null, 2));
 
-        case 'estimation':
-          await this.handleEstimation(message, intent);
-          break;
-
-        case 'general_question':
-          await this.handleGeneralQuestion(message);
-          break;
-
-        case 'workflow_control':
-          await this.handleWorkflowControl(intent.action || 'continue');
-          break;
-
-        default:
-          await this.handleUnknownIntent(message);
+      // Show planner reasoning if confidence is low
+      if (plannerResult.confidence < 0.7) {
+        chatProvider.sendSystemMessage(
+          `⚠️ I'm ${Math.round(plannerResult.confidence * 100)}% confident about this. ${plannerResult.reasoning}`
+        );
       }
+
     } catch (error) {
-      chatProvider.sendError(`Error processing message: ${error}`);
-      console.error('Workflow orchestration error:', error);
+      console.error('Planner analysis failed:', error);
+      chatProvider.sendError('Failed to analyze your request. Please try rephrasing.');
+      return;
+    }
+
+    // Execute the plan
+    try {
+      await this.executePlan(plannerResult, message);
+    } catch (error) {
+      chatProvider.sendError(`Error executing plan: ${error}`);
+      console.error('Plan execution error:', error);
     }
   }
 
   /**
-   * Analyze user intent from their message
+   * Execute the planner's execution plan
    */
-  private analyzeUserIntent(message: string): {
-    type: 'formulation' | 'eda' | 'estimation' | 'general_question' | 'workflow_control';
-    action?: string;
-    confidence?: number;
-  } {
-    const lowerMsg = message.toLowerCase();
+  private async executePlan(plannerResult: PlannerResult, originalMessage: string): Promise<void> {
+    const chatProvider = getChatProvider();
+    if (!chatProvider) return;
 
-    // Workflow control keywords
-    if (
-      lowerMsg.includes('start') ||
-      lowerMsg.includes('begin') ||
-      lowerMsg.includes('restart') ||
-      lowerMsg.includes('reset')
-    ) {
-      return { type: 'workflow_control', action: 'restart' };
+    const { intent, causalSpec, executionPlan } = plannerResult;
+
+    // Check prerequisites
+    const missingPrereqs = this.checkPrerequisites(plannerResult);
+    if (missingPrereqs.length > 0) {
+      chatProvider.sendAssistantMessage(
+        `Before we proceed, we need:\n${missingPrereqs.map((p) => `- ${p}`).join('\n')}\n\nWould you like help with these?`,
+        { agentName: 'Assistant', type: 'text' }
+      );
+      return;
     }
 
-    if (lowerMsg.includes('next') || lowerMsg.includes('continue') || lowerMsg.includes('proceed')) {
-      return { type: 'workflow_control', action: 'continue' };
+    // Show execution plan
+    if (executionPlan.steps.length > 1) {
+      const planSummary = `📋 **Execution Plan** (${executionPlan.estimatedDuration}):\n${executionPlan.steps
+        .map((step) => `${step.stepNumber}. ${step.action} (${step.agent})`)
+        .join('\n')}`;
+      chatProvider.sendSystemMessage(planSummary);
     }
 
-    // Formulation stage keywords
-    if (
-      lowerMsg.includes('effect of') ||
-      lowerMsg.includes('does') ||
-      lowerMsg.includes('impact') ||
-      lowerMsg.includes('cause') ||
-      lowerMsg.includes('research question') ||
-      lowerMsg.includes('treatment') ||
-      lowerMsg.includes('outcome')
-    ) {
-      return { type: 'formulation', confidence: 0.8 };
+    // Update shared context with causal spec
+    if (causalSpec.treatment) this.currentSession!.sharedContext.treatment = causalSpec.treatment;
+    if (causalSpec.outcome) this.currentSession!.sharedContext.outcome = causalSpec.outcome;
+    if (causalSpec.confounders) this.currentSession!.sharedContext.confounders = causalSpec.confounders;
+
+    // Route to appropriate handler based on intent type
+    switch (intent.type) {
+      case 'formulation':
+        await this.handleFormulation(originalMessage, plannerResult);
+        break;
+
+      case 'eda':
+        await this.handleEDA(originalMessage, plannerResult);
+        break;
+
+      case 'estimation':
+        await this.handleEstimation(originalMessage, plannerResult);
+        break;
+
+      case 'workflow_control':
+        await this.handleWorkflowControl(intent.subtype || 'continue');
+        break;
+
+      case 'dataset_operation':
+        await this.handleDatasetOperation(originalMessage, plannerResult);
+        break;
+
+      case 'general_question':
+        await this.handleGeneralQuestion(originalMessage, plannerResult);
+        break;
+
+      default:
+        await this.handleUnknownIntent(originalMessage);
     }
 
-    // EDA stage keywords
-    if (
-      lowerMsg.includes('explore') ||
-      lowerMsg.includes('analyze data') ||
-      lowerMsg.includes('check assumptions') ||
-      lowerMsg.includes('eda') ||
-      lowerMsg.includes('data quality') ||
-      lowerMsg.includes('missing values') ||
-      lowerMsg.includes('distribution')
-    ) {
-      return { type: 'eda', confidence: 0.7 };
-    }
+    // Suggest next steps after execution
+    const nextSteps = await this.plannerAgent.suggestNextSteps(
+      this.currentSession!.sharedContext,
+      this.currentSession!.currentStage,
+      this.currentSession!.conversationHistory
+    );
 
-    // Estimation stage keywords
-    if (
-      lowerMsg.includes('estimate') ||
-      lowerMsg.includes('calculate effect') ||
-      lowerMsg.includes('causal effect') ||
-      lowerMsg.includes('treatment effect') ||
-      lowerMsg.includes('ate') ||
-      lowerMsg.includes('propensity')
-    ) {
-      return { type: 'estimation', confidence: 0.7 };
+    if (nextSteps.length > 0) {
+      chatProvider.sendSystemMessage(
+        `✨ **Suggested Next Steps:**\n${nextSteps.map((step, i) => `${i + 1}. ${step}`).join('\n')}`
+      );
     }
-
-    // Default to general question
-    return { type: 'general_question' };
   }
 
   /**
-   * Handle formulation stage workflow
+   * Check if prerequisites are met for the plan
    */
-  private async handleFormulation(message: string, _intent: any): Promise<void> {
+  private checkPrerequisites(plannerResult: PlannerResult): string[] {
+    const missing: string[] = [];
+    const { intent, executionPlan } = plannerResult;
+    const context = this.currentSession!.sharedContext;
+
+    // Check if dataset is required but not loaded
+    if (intent.requiresDataset && !context.dataset) {
+      missing.push('Dataset needs to be loaded');
+    }
+
+    // Check if prior stages are required
+    if (intent.requiresPriorStages) {
+      for (const requiredStage of intent.requiresPriorStages) {
+        if (requiredStage === WorkflowStage.FORMULATION) {
+          if (!context.treatment || !context.outcome) {
+            missing.push('Research question needs to be formulated (treatment and outcome defined)');
+          }
+        }
+        if (requiredStage === WorkflowStage.EDA) {
+          if (!context.dataset) {
+            missing.push('Exploratory data analysis needs to be completed');
+          }
+        }
+      }
+    }
+
+    // Check explicit prerequisites from execution plan
+    for (const prereq of executionPlan.prerequisites) {
+      if (prereq.toLowerCase().includes('dataset') && !context.dataset) {
+        if (!missing.some(m => m.includes('Dataset'))) {
+          missing.push(prereq);
+        }
+      }
+    }
+
+    return missing;
+  }
+
+  /**
+   * Analyze user intent from their message (DEPRECATED - now using Planner Agent)
+   */
+  private async handleFormulation(message: string, _plannerResult: PlannerResult): Promise<void> {
     const chatProvider = getChatProvider();
     if (!chatProvider) return;
 
@@ -234,7 +294,7 @@ export class ChatWorkflowOrchestrator {
   /**
    * Handle EDA stage workflow
    */
-  private async handleEDA(message: string, _intent: any): Promise<void> {
+  private async handleEDA(message: string, _plannerResult: PlannerResult): Promise<void> {
     const chatProvider = getChatProvider();
     if (!chatProvider) return;
 
@@ -301,7 +361,7 @@ export class ChatWorkflowOrchestrator {
   /**
    * Handle estimation stage workflow
    */
-  private async handleEstimation(message: string, _intent: any): Promise<void> {
+  private async handleEstimation(message: string, _plannerResult: PlannerResult): Promise<void> {
     const chatProvider = getChatProvider();
     if (!chatProvider) return;
 
@@ -371,21 +431,39 @@ export class ChatWorkflowOrchestrator {
   }
 
   /**
-   * Handle general questions about causal inference
+   * Handle dataset operations (load, create, preview)
    */
-  private async handleGeneralQuestion(_message: string): Promise<void> {
+  private async handleDatasetOperation(_message: string, _plannerResult: PlannerResult): Promise<void> {
     const chatProvider = getChatProvider();
     if (!chatProvider) return;
 
-    // For now, provide helpful response
+    chatProvider.sendSystemMessage('📁 Processing dataset operation...');
+
+    // For now, suggest using the demo workflow command
     chatProvider.sendAssistantMessage(
-      `I can help you with causal inference workflows. Here's what I can do:\n\n` +
-        `- **Formulate** your research question (e.g., "Does education affect income?")\n` +
-        `- **Analyze** your data to check causal assumptions\n` +
-        `- **Estimate** causal effects using appropriate methods\n\n` +
-        `What would you like to explore?`,
+      `Dataset operations are not fully implemented yet. You can:\n\n` +
+        `1. Run the **"Demo Workflow in Chat"** command to create a sample dataset\n` +
+        `2. Or I can help you formulate your research question first, then we'll work on data loading\n\n` +
+        `What would you like to do?`,
       { agentName: 'Assistant', type: 'text' }
     );
+  }
+
+  /**
+   * Handle general questions about causal inference
+   */
+  private async handleGeneralQuestion(_message: string, plannerResult: PlannerResult): Promise<void> {
+    const chatProvider = getChatProvider();
+    if (!chatProvider) return;
+
+    // Use planner's reasoning to provide context-aware response
+    const response = plannerResult.reasoning || `I can help you with causal inference workflows. Here's what I can do:\n\n` +
+      `- **Formulate** your research question (e.g., "Does education affect income?")\n` +
+      `- **Analyze** your data to check causal assumptions\n` +
+      `- **Estimate** causal effects using appropriate methods\n\n` +
+      `What would you like to explore?`;
+
+    chatProvider.sendAssistantMessage(response, { agentName: 'Assistant', type: 'text' });
   }
 
   /**
