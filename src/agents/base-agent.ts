@@ -40,6 +40,15 @@ export abstract class BaseCausalAgent implements CausalAgent {
     // TODO: Add Mastra integration when exports are fixed
     // TODO: Support Anthropic, Groq, and other providers
     const config = getLLMConfig();
+
+    if (!config.apiKey) {
+      throw new Error(
+        `Missing OPENAI_API_KEY environment variable. ` +
+        `Please ensure your .env file exists with OPENAI_API_KEY set. ` +
+        `Current API key value: ${config.apiKey === undefined ? 'undefined' : 'empty string'}`
+      );
+    }
+
     this.llmClient = new OpenAI({
       apiKey: config.apiKey,
     });

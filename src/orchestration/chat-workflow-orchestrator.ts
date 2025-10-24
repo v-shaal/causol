@@ -13,6 +13,7 @@ import { EDAAgent } from '../agents/eda-agent';
 import { EstimationAgent } from '../agents/estimation-agent';
 import { PlannerAgent, PlannerResult } from '../agents/planner-agent';
 import { getChatProvider } from '../extension/extension';
+import { executeCausalWorkflow } from './causal-workflow';
 
 export interface WorkflowSession {
   id: string;
@@ -58,6 +59,49 @@ export class ChatWorkflowOrchestrator {
   }
 
   /**
+   * Execute full workflow using Mastra orchestration
+   * This runs all three steps (Formulation → EDA → Estimation) automatically
+   */
+  public async executeFullWorkflow(userMessage: string): Promise<void> {
+    const chatProvider = getChatProvider();
+    if (!chatProvider) {
+      vscode.window.showErrorMessage('Chat provider not initialized');
+      return;
+    }
+
+    // Initialize session if needed
+    if (!this.currentSession) {
+      this.startNewSession();
+    }
+
+    chatProvider.sendSystemMessage('🚀 Starting complete causal inference workflow...');
+
+    try {
+      const result = await executeCausalWorkflow(
+        userMessage,
+        this.currentSession!.sharedContext
+      );
+
+      if (result.status === 'success') {
+        // Update session with final context from estimation step
+        if (result.steps?.estimation?.output?.sharedContext) {
+          this.currentSession!.sharedContext = result.steps.estimation.output.sharedContext;
+        }
+
+        // Update workflow stage
+        this.currentSession!.currentStage = WorkflowStage.ESTIMATION;
+
+        chatProvider.sendSystemMessage('✅ Full workflow completed successfully!');
+      } else {
+        chatProvider.sendError(`Workflow failed with status: ${result.status}`);
+      }
+    } catch (error) {
+      chatProvider.sendError(`Workflow execution failed: ${error}`);
+      console.error('Mastra workflow error:', error);
+    }
+  }
+
+  /**
    * Process a user message and orchestrate the appropriate agent workflow
    */
   public async processUserMessage(message: string): Promise<void> {
@@ -73,6 +117,27 @@ export class ChatWorkflowOrchestrator {
       chatProvider.sendSystemMessage(
         '🚀 Starting new causal inference workflow. Let\'s begin by formulating your research question.'
       );
+    }
+
+    // Check if user is confirming dataset is loaded
+    const datasetConfirmationPatterns = [
+      /dataset.*loaded.*df/i,
+      /df.*loaded/i,
+      /already.*loaded/i,
+      /data.*in.*df/i,
+      /using.*df/i,
+    ];
+
+    if (datasetConfirmationPatterns.some((pattern) => pattern.test(message))) {
+      // User confirmed dataset exists - update context
+      if (!this.currentSession!.sharedContext.dataset) {
+        this.currentSession!.sharedContext.dataset = {
+          name: 'df',
+          rows: -1, // Unknown size
+          columns: [], // Will be determined during EDA
+        };
+        chatProvider.sendSystemMessage('✅ Noted: Dataset is loaded as `df`. Proceeding with analysis...');
+      }
     }
 
     // Add user message to history
@@ -452,18 +517,111 @@ export class ChatWorkflowOrchestrator {
   /**
    * Handle general questions about causal inference
    */
-  private async handleGeneralQuestion(_message: string, plannerResult: PlannerResult): Promise<void> {
+  private async handleGeneralQuestion(message: string, plannerResult: PlannerResult): Promise<void> {
     const chatProvider = getChatProvider();
     if (!chatProvider) return;
 
-    // Use planner's reasoning to provide context-aware response
-    const response = plannerResult.reasoning || `I can help you with causal inference workflows. Here's what I can do:\n\n` +
-      `- **Formulate** your research question (e.g., "Does education affect income?")\n` +
-      `- **Analyze** your data to check causal assumptions\n` +
-      `- **Estimate** causal effects using appropriate methods\n\n` +
-      `What would you like to explore?`;
+    const { intent } = plannerResult;
 
-    chatProvider.sendAssistantMessage(response, { agentName: 'Assistant', type: 'text' });
+    // Handle different subtypes of general questions
+    switch (intent.subtype) {
+      case 'greeting':
+        chatProvider.sendAssistantMessage(
+          `👋 Hello! I'm your Causal Inference Assistant.\n\n` +
+          `I help you analyze cause-and-effect relationships in data using rigorous statistical methods.\n\n` +
+          `**What I can do:**\n` +
+          `- Formulate causal research questions\n` +
+          `- Check data quality and assumptions (EDA)\n` +
+          `- Estimate treatment effects\n` +
+          `- Validate causal assumptions\n\n` +
+          `**Get started:**\n` +
+          `- Try asking: "Does education affect income?"\n` +
+          `- Or: "How do I load my data?"\n` +
+          `- Or run the demo: Cmd+Shift+P → "Demo Workflow"`,
+          { agentName: 'Assistant', type: 'text' }
+        );
+        break;
+
+      case 'help':
+        // Extract what they need help with from the message
+        const helpTopic = this.extractHelpTopic(message);
+
+        if (helpTopic === 'dataset') {
+          chatProvider.sendAssistantMessage(
+            `**Loading Data - Two Options:**\n\n` +
+            `**Option 1: Demo Dataset** (Quickest)\n` +
+            `- Press \`Cmd+Shift+P\` (Mac) or \`Ctrl+Shift+P\` (Windows)\n` +
+            `- Type "Causal Assistant: Demo Workflow in Chat"\n` +
+            `- This creates a sample heart attack prevention study\n\n` +
+            `**Option 2: Your Own Data**\n` +
+            `First, tell me your research question (e.g., "Does X affect Y?"), then I'll guide you on:\n` +
+            `- What data you need\n` +
+            `- How to prepare it\n` +
+            `- How to load it\n\n` +
+            `Which option would you prefer?`,
+            { agentName: 'Assistant', type: 'text' }
+          );
+        } else if (helpTopic === 'formulation') {
+          chatProvider.sendAssistantMessage(
+            `**Formulating Causal Questions:**\n\n` +
+            `A good causal question has:\n` +
+            `1. **Treatment** (what you want to change): e.g., "education level"\n` +
+            `2. **Outcome** (what you want to measure): e.g., "income"\n` +
+            `3. **Population** (who you're studying): e.g., "adults in US"\n\n` +
+            `**Example:** "Does education level affect income for adults in the US?"\n\n` +
+            `Try stating your question, and I'll help refine it!`,
+            { agentName: 'Assistant', type: 'text' }
+          );
+        } else {
+          // General help
+          chatProvider.sendAssistantMessage(
+            `**How to Use This Assistant:**\n\n` +
+            `**1. Formulate** your causal question\n` +
+            `   Example: "Does aspirin reduce heart attacks?"\n\n` +
+            `**2. Load or describe** your data\n` +
+            `   Run demo or describe your dataset\n\n` +
+            `**3. I'll guide you** through:\n` +
+            `   - Data exploration and assumption checking\n` +
+            `   - Causal effect estimation\n` +
+            `   - Results interpretation\n\n` +
+            `What would you like to start with?`,
+            { agentName: 'Assistant', type: 'text' }
+          );
+        }
+        break;
+
+      default:
+        // Use planner's reasoning for other general questions
+        const response = plannerResult.reasoning || `I can help you with causal inference workflows. Here's what I can do:\n\n` +
+          `- **Formulate** your research question (e.g., "Does education affect income?")\n` +
+          `- **Analyze** your data to check causal assumptions\n` +
+          `- **Estimate** causal effects using appropriate methods\n\n` +
+          `What would you like to explore?`;
+
+        chatProvider.sendAssistantMessage(response, { agentName: 'Assistant', type: 'text' });
+    }
+  }
+
+  /**
+   * Extract help topic from user message
+   */
+  private extractHelpTopic(message: string): string {
+    const lowerMsg = message.toLowerCase();
+
+    if (lowerMsg.includes('data') || lowerMsg.includes('dataset') || lowerMsg.includes('load')) {
+      return 'dataset';
+    }
+    if (lowerMsg.includes('question') || lowerMsg.includes('formulate') || lowerMsg.includes('start')) {
+      return 'formulation';
+    }
+    if (lowerMsg.includes('estimate') || lowerMsg.includes('effect')) {
+      return 'estimation';
+    }
+    if (lowerMsg.includes('assumption') || lowerMsg.includes('check') || lowerMsg.includes('explore')) {
+      return 'eda';
+    }
+
+    return 'general';
   }
 
   /**
@@ -474,6 +632,57 @@ export class ChatWorkflowOrchestrator {
     if (!chatProvider) return;
 
     switch (action) {
+      case 'affirmative':
+        // User said "yes" - provide helpful next steps based on context
+        // Check if we have a dataset loaded
+        const hasDataset = this.currentSession?.sharedContext?.dataset !== undefined;
+
+        if (!hasDataset) {
+          // Most likely context: user needs help loading data
+          chatProvider.sendAssistantMessage(
+            `Great! Let me help you get started.\n\n` +
+            `**Quickest Way - Demo Dataset:**\n` +
+            `1. Press \`Cmd+Shift+P\` (Mac) or \`Ctrl+Shift+P\` (Windows)\n` +
+            `2. Type "Causal Assistant: Demo Workflow in Chat"\n` +
+            `3. Press Enter\n\n` +
+            `This will create a sample dataset analyzing whether aspirin reduces heart attacks.\n\n` +
+            `**Or:** Tell me about your research question and I'll guide you through your own data.\n\n` +
+            `What would you prefer?`,
+            { agentName: 'Assistant', type: 'text' }
+          );
+        } else {
+          // We have data, continue with workflow
+          const stage = this.currentSession?.currentStage || WorkflowStage.FORMULATION;
+          if (stage === WorkflowStage.FORMULATION) {
+            chatProvider.sendSystemMessage(
+              `✅ Perfect! Let's analyze your data. I'll check the causal assumptions first.`
+            );
+            // Trigger EDA automatically
+            await this.handleEDA('Check causal assumptions', {
+              intent: {
+                type: 'eda',
+                userGoal: 'Check causal assumptions',
+                requiresDataset: true,
+                requiresPriorStages: [],
+              },
+              causalSpec: {},
+              executionPlan: {
+                steps: [],
+                estimatedDuration: '2-3 minutes',
+                prerequisites: [],
+                expectedOutputs: ['Data quality assessment', 'Assumption validation'],
+              },
+              confidence: 0.9,
+              reasoning: 'User confirmed to proceed with analysis',
+            });
+          } else {
+            chatProvider.sendSystemMessage(
+              `📍 Continuing from ${stage}. Processing next steps...`
+            );
+          }
+        }
+        break;
+
       case 'restart':
         this.startNewSession();
         chatProvider.sendSystemMessage(

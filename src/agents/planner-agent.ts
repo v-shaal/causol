@@ -301,6 +301,126 @@ Provide detailed, structured plans that guide the user through rigorous causal a
     let causalSpec: CausalSpecification = {};
     let executionPlan: ExecutionPlan;
 
+    // Check for greetings and conversational queries first
+    if (
+      lowerMsg.includes('hello') ||
+      lowerMsg.includes('hi') ||
+      lowerMsg.includes('hey') ||
+      lowerMsg.match(/what.*(your|ur).*name/) ||
+      lowerMsg.match(/who.*are.*you/)
+    ) {
+      intent = {
+        type: 'general_question',
+        subtype: 'greeting',
+        userGoal: 'Greet or learn about the assistant',
+        requiresDataset: false,
+        requiresPriorStages: [],
+      };
+
+      executionPlan = {
+        steps: [
+          {
+            stepNumber: 1,
+            agent: 'Assistant',
+            action: 'Introduce myself and explain capabilities',
+            input: message,
+            expectedOutput: 'Friendly greeting and overview',
+          },
+        ],
+        estimatedDuration: '5 seconds',
+        prerequisites: [],
+        expectedOutputs: ['Introduction and capabilities overview'],
+      };
+
+      return {
+        intent,
+        causalSpec,
+        executionPlan,
+        confidence: 0.95,
+        reasoning: 'Detected greeting or introduction request',
+      };
+    }
+
+    // Check for help requests
+    if (
+      lowerMsg.includes('help') ||
+      lowerMsg.includes('how do i') ||
+      lowerMsg.includes('how to') ||
+      lowerMsg.includes('can you help')
+    ) {
+      intent = {
+        type: 'general_question',
+        subtype: 'help',
+        userGoal: 'Get help with specific task',
+        requiresDataset: false,
+        requiresPriorStages: [],
+      };
+
+      executionPlan = {
+        steps: [
+          {
+            stepNumber: 1,
+            agent: 'Assistant',
+            action: 'Provide specific help based on question',
+            input: message,
+            expectedOutput: 'Actionable guidance',
+          },
+        ],
+        estimatedDuration: '5 seconds',
+        prerequisites: [],
+        expectedOutputs: ['Step-by-step instructions or guidance'],
+      };
+
+      return {
+        intent,
+        causalSpec,
+        executionPlan,
+        confidence: 0.9,
+        reasoning: 'Detected help request',
+      };
+    }
+
+    // Check for affirmative responses (yes, sure, okay, etc.)
+    if (
+      lowerMsg === 'yes' ||
+      lowerMsg === 'yeah' ||
+      lowerMsg === 'sure' ||
+      lowerMsg === 'ok' ||
+      lowerMsg === 'okay' ||
+      lowerMsg === 'y'
+    ) {
+      intent = {
+        type: 'workflow_control',
+        subtype: 'affirmative',
+        userGoal: 'Confirm or agree to previous suggestion',
+        requiresDataset: false,
+        requiresPriorStages: [],
+      };
+
+      executionPlan = {
+        steps: [
+          {
+            stepNumber: 1,
+            agent: 'Assistant',
+            action: 'Act on previous question or suggestion',
+            input: message,
+            expectedOutput: 'Follow-up action',
+          },
+        ],
+        estimatedDuration: '5 seconds',
+        prerequisites: [],
+        expectedOutputs: ['Appropriate follow-up action'],
+      };
+
+      return {
+        intent,
+        causalSpec,
+        executionPlan,
+        confidence: 0.85,
+        reasoning: 'Detected affirmative response',
+      };
+    }
+
     if (lowerMsg.includes('effect of') || lowerMsg.includes('does') || lowerMsg.includes('cause')) {
       intent = {
         type: 'formulation',

@@ -1,0 +1,346 @@
+/**
+ * Mastra workflow for causal inference process
+ * Orchestrates: Formulation → EDA → Estimation with branching logic
+ *
+ * STATUS: DISABLED - API mismatch with installed Mastra version
+ * See: /docs/MASTRA_WORKFLOW_INTEGRATION.md for details
+ *
+ * TODO: Re-enable when Mastra API stabilizes or when we have time to
+ *       learn v0.22.2 API structure properly
+ */
+
+// The code below was written based on Mastra documentation but doesn't match v0.22.2 API
+
+import { Workflow } from '@mastra/core';  // API mismatch - see docs
+import { z } from 'zod';
+import { FormulationAgent } from '../agents/formulation-agent';
+import { EDAAgent } from '../agents/eda-agent';
+import { EstimationAgent } from '../agents/estimation-agent';
+import { WorkflowStage, SharedContext } from '../types/workflow.types';
+import { Task } from '../types/agent.types';
+import { getChatProvider } from '../extension/extension';
+
+// ============================================================================
+// Input/Output Schemas
+// ============================================================================
+
+const CausalWorkflowInput = z.object({
+  userMessage: z.string().describe('User research question or request'),
+  context: z
+    .object({
+      treatment: z.string().optional(),
+      outcome: z.string().optional(),
+      confounders: z.array(z.string()).optional(),
+      dataset: z
+        .object({
+          name: z.string(),
+          rows: z.number(),
+          columns: z.array(z.string()),
+        })
+        .optional(),
+    })
+    .optional(),
+});
+
+const CausalWorkflowOutput = z.object({
+  success: z.boolean(),
+  finalStage: z.string(),
+  results: z.record(z.any()),
+  interpretation: z.string().optional(),
+});
+
+// ============================================================================
+// Workflow Steps (Documentation-based API - doesn't work with v0.22.2)
+// ============================================================================
+
+/**
+ * Step 1: Formulation - Define causal question and identify variables
+ *
+ * TODO: Rewrite using v0.22.2 API structure:
+ * - execute signature is different (needs runId, mastra, runtimeContext, etc.)
+ * - context parameter structure is completely different
+ * - Need to understand Step generic types
+ */
+const formulationStep = {
+  id: 'formulation',
+  execute: async ({ context }: any) => {  // TODO: Fix type - 'any' is temporary
+    const chatProvider = getChatProvider();
+    chatProvider?.sendSystemMessage('🔍 Analyzing your causal question...');
+
+    const userMessage = context.triggerData.userMessage as string;
+    const sharedContext: SharedContext = (context.triggerData.context as SharedContext) || {};
+
+    const agent = new FormulationAgent();
+    const task: Task = {
+      id: 'workflow-formulation',
+      stage: WorkflowStage.FORMULATION,
+      description: 'Formulate causal question',
+      input: userMessage,
+    };
+
+    const result = await agent.execute(task, sharedContext);
+
+    // Update shared context with formulation results
+    if (result.success && result.data) {
+      const formData = result.data as any;
+      Object.assign(sharedContext, {
+        treatment: formData.treatment,
+        outcome: formData.outcome,
+        confounders: formData.confounders || [],
+        researchQuestion: formData.researchQuestion,
+      });
+
+      chatProvider?.sendAssistantMessage(
+        `**Causal Question Formulated:**\n\n${formData.researchQuestion || 'Question structured'}\n\n` +
+          `- Treatment: ${formData.treatment}\n` +
+          `- Outcome: ${formData.outcome}\n` +
+          `- Potential confounders: ${formData.confounders?.join(', ') || 'To be determined'}`,
+        {
+          agentName: 'Formulation Agent',
+          type: 'agent-output',
+          workflowStage: 'formulation',
+        }
+      );
+    }
+
+    return {
+      success: result.success,
+      context: sharedContext,
+      needsDataset: !sharedContext.dataset,
+    };
+  },
+};
+
+/**
+ * Step 2: EDA - Exploratory data analysis and assumption checking
+ *
+ * TODO: Same issues as formulationStep - needs v0.22.2 API rewrite
+ */
+const edaStep = {
+  id: 'eda',
+  execute: async ({ context }: any) => {  // TODO: Fix type
+    const chatProvider = getChatProvider();
+    chatProvider?.sendSystemMessage('📊 Checking causal assumptions in your data...');
+
+    const sharedContext = context.steps.formulation.output.context as SharedContext;
+
+    // Check if we have a dataset
+    if (!sharedContext.dataset) {
+      chatProvider?.sendError('No dataset loaded. Please load data before running EDA.');
+      return {
+        success: false,
+        reason: 'no_dataset',
+        context: sharedContext,
+      };
+    }
+
+    const agent = new EDAAgent();
+    const task: Task = {
+      id: 'workflow-eda',
+      stage: WorkflowStage.EDA,
+      description: 'Check causal assumptions',
+      input: 'Perform exploratory data analysis and assumption checking',
+    };
+
+    const result = await agent.execute(task, sharedContext);
+
+    if (result.success && result.data) {
+      const edaData = result.data as any;
+
+      chatProvider?.sendAssistantMessage(
+        `**Data Analysis Complete:**\n\n${edaData.summary || 'Analysis completed'}`,
+        {
+          agentName: 'EDA Agent',
+          type: 'agent-output',
+          workflowStage: 'eda',
+          metadata: {
+            checks: edaData.checks,
+            violations: edaData.violations,
+            executionSuccess: edaData.executionSuccess,
+          },
+        }
+      );
+
+      if (edaData.executionOutput) {
+        chatProvider?.sendAssistantMessage(edaData.executionOutput, {
+          agentName: 'EDA Agent',
+          type: 'text',
+        });
+      }
+    }
+
+    return {
+      success: result.success,
+      context: sharedContext,
+      hasViolations: (result.data as any)?.violations?.length > 0,  // TODO: Fix type
+    };
+  },
+};
+
+/**
+ * Step 3: Estimation - Causal effect estimation
+ *
+ * TODO: Same issues - needs v0.22.2 API rewrite
+ */
+const estimationStep = {
+  id: 'estimation',
+  execute: async ({ context }: any) => {  // TODO: Fix type
+    const chatProvider = getChatProvider();
+    chatProvider?.sendSystemMessage('📈 Estimating causal effect...');
+
+    const sharedContext = context.steps.eda.output.context as SharedContext;
+
+    // Set adjustment set (use confounders from formulation)
+    sharedContext.adjustmentSet = sharedContext.confounders || [];
+
+    const agent = new EstimationAgent();
+    const task: Task = {
+      id: 'workflow-estimation',
+      stage: WorkflowStage.ESTIMATION,
+      description: 'Estimate causal effect',
+      input: `Estimate the causal effect of ${sharedContext.treatment} on ${sharedContext.outcome}`,
+    };
+
+    const result = await agent.execute(task, sharedContext);
+
+    if (result.success && result.data) {
+      const estData = result.data as any;
+
+      chatProvider?.sendAssistantMessage(
+        `**Causal Effect Estimation:**\n\n${estData.explanation || 'Estimation completed'}`,
+        {
+          agentName: 'Estimation Agent',
+          type: 'agent-output',
+          workflowStage: 'estimation',
+          metadata: {
+            executionSuccess: estData.executionSuccess,
+          },
+        }
+      );
+
+      if (estData.executionOutput) {
+        chatProvider?.sendAssistantMessage(estData.executionOutput, {
+          agentName: 'Estimation Agent',
+          type: 'text',
+        });
+      }
+
+      if (estData.interpretation) {
+        chatProvider?.sendAssistantMessage(`**Interpretation:** ${estData.interpretation}`, {
+          agentName: 'Estimation Agent',
+          type: 'text',
+        });
+      }
+    }
+
+    return {
+      success: result.success,
+      context: sharedContext,
+      interpretation: (result.data as any)?.interpretation,  // TODO: Fix type
+    };
+  },
+};
+
+/**
+ * Step 4: Finalization - Wrap up and provide summary
+ *
+ * TODO: Same issues - needs v0.22.2 API rewrite
+ */
+const finalizationStep = {
+  id: 'finalization',
+  execute: async ({ context }: any) => {  // TODO: Fix type
+    const chatProvider = getChatProvider();
+
+    const formulationOutput = context.steps.formulation.output;
+    const edaOutput = context.steps.eda.output;
+    const estimationOutput = context.steps.estimation.output;
+
+    const allSuccess = formulationOutput.success && edaOutput.success && estimationOutput.success;
+
+    if (allSuccess) {
+      chatProvider?.sendSystemMessage('✅ Causal inference workflow completed successfully!');
+
+      chatProvider?.sendAssistantMessage(
+        `**Workflow Summary:**\n\n` +
+          `✅ Research question formulated\n` +
+          `✅ Data assumptions checked\n` +
+          `✅ Causal effect estimated\n\n` +
+          `${estimationOutput.interpretation ? `**Key Finding:** ${estimationOutput.interpretation}` : ''}`,
+        {
+          agentName: 'Workflow Engine',
+          type: 'text',
+        }
+      );
+    } else {
+      chatProvider?.sendSystemMessage('⚠️ Workflow completed with issues. Review results above.');
+    }
+
+    return {
+      success: allSuccess,
+      finalStage: 'estimation',
+      results: {
+        formulation: formulationOutput,
+        eda: edaOutput,
+        estimation: estimationOutput,
+      },
+      interpretation: estimationOutput.interpretation,
+    };
+  },
+};
+
+// ============================================================================
+// Workflow Definition (Documentation-based - doesn't work)
+// ============================================================================
+
+// TODO: This workflow definition doesn't match v0.22.2 API
+// Need to understand:
+// 1. How to create Workflow instance with v0.22.2 constructor
+// 2. How to chain steps (is it still .step().then().commit()?)
+// 3. How to provide Mastra instance and RuntimeContext
+// 4. How to execute the workflow
+
+/*
+export const causalInferenceWorkflow = new Workflow({
+  name: 'causal-inference-workflow',
+  triggerSchema: CausalWorkflowInput,
+});
+
+causalInferenceWorkflow
+  .step(formulationStep)
+  .then(edaStep)
+  .then(estimationStep)
+  .then(finalizationStep)
+  .commit();
+*/
+
+// ============================================================================
+// Helper Functions (Disabled)
+// ============================================================================
+
+/**
+ * Execute the causal inference workflow
+ *
+ * TODO: Reimplement when workflow is working
+ */
+export async function executeCausalWorkflow(
+  userMessage: string,
+  context?: SharedContext
+): Promise<any> {
+  throw new Error(
+    'Mastra workflow not implemented - API mismatch with v0.22.2. ' +
+    'See /docs/MASTRA_WORKFLOW_INTEGRATION.md for details.'
+  );
+
+  /*
+  const run = causalInferenceWorkflow.createRun();
+
+  const result = await run.start({
+    triggerData: {
+      userMessage,
+      context: context || {},
+    },
+  });
+
+  return result;
+  */
+}

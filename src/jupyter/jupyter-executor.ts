@@ -334,12 +334,16 @@ export class VSCodeJupyterExecutor implements JupyterExecutor {
     // Show the notebook
     await vscode.window.showNotebookDocument(notebook);
 
-    // If filename provided, save it
+    // If filename provided and workspace exists, save it
     if (filename) {
       const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
       if (workspaceFolder) {
-        const uri = vscode.Uri.joinPath(workspaceFolder.uri, filename);
-        await vscode.workspace.fs.writeFile(uri, Buffer.from(JSON.stringify(notebookData)));
+        try {
+          const uri = vscode.Uri.joinPath(workspaceFolder.uri, filename);
+          await vscode.workspace.fs.writeFile(uri, Buffer.from(JSON.stringify(notebookData)));
+        } catch (error) {
+          console.warn('Could not save notebook to workspace:', error);
+        }
       }
     }
 

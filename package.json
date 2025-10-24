@@ -53,6 +53,26 @@
         "command": "causal-assistant.demoWorkflow",
         "title": "Demo Workflow in Chat",
         "category": "Causal Assistant"
+      },
+      {
+        "command": "causal-assistant.testMastraWorkflow",
+        "title": "Test Mastra Workflow",
+        "category": "Causal Assistant"
+      },
+      {
+        "command": "causal-assistant.testMastraSimple",
+        "title": "Test Mastra Workflow (Simple)",
+        "category": "Causal Assistant"
+      },
+      {
+        "command": "causal-assistant.testMastraDetailed",
+        "title": "Test Mastra Workflow (Detailed Analysis)",
+        "category": "Causal Assistant"
+      },
+      {
+        "command": "causal-assistant.testEnv",
+        "title": "Test Environment Variables",
+        "category": "Causal Assistant"
       }
     ],
     "viewsContainers": {
@@ -124,9 +144,10 @@
     "@anthropic-ai/sdk": "^0.32.0",
     "@jupyterlab/nbformat": "^4.4.10",
     "@jupyterlab/services": "^7.4.10",
-    "@mastra/core": "^0.1.0",
+    "@mastra/core": "^0.22.2",
     "axios": "^1.7.0",
     "dotenv": "^17.2.3",
+    "openai": "^6.6.0",
     "zod": "^3.23.0",
     "zustand": "^5.0.0"
   },
